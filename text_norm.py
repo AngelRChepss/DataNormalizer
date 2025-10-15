@@ -67,7 +67,6 @@ def rmv_tildes(x : str) -> str:
 def collapse(string: str, character: str) -> str:
     if len(character) != 1:
         raise ValueError("character must be a single character")
-    print("collapsing")
     return character.join(string.split(character))
 
 def repl_fixed(string: str, rep_list: List[str], replacement: str) -> str:
