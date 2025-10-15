@@ -161,8 +161,8 @@ def naming_case(s : str):
     return result
 
 CAPITALIZATION = {
-    "upper": str.upper,
-    "lower": str.lower,
+    "uppercase": str.upper,
+    "lowercase": str.lower,
     "capitalize": str.capitalize,
     "titlecase": str.title,
     "none": lambda x: x,
