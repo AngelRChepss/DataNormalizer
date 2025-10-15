@@ -320,3 +320,5 @@ cython_debug/
 localtest.py
 # Ignore test excel files
 test.xlsx
+test-in.xlsx
+test-out.xlsx
