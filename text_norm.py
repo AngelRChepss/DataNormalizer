@@ -1,4 +1,5 @@
-from typing import List, Dict, Set
+from dataclasses import dataclass, field
+from typing import List, Dict, Optional
 
 # Este modulo se encarga de normalizar datos puros, pero no tiene la capacidad de trabajar con archivos.
 # Los datos deberan ser entregados en formato de lista, y se entregaran resultados de normalizacion.
@@ -205,3 +206,17 @@ def normalize_text(
     result = CAPITALIZATION[capitalization](result)
     result = patch_cap(result, cap_rules)
     return result
+
+@dataclass
+class Normalizer:
+    strip: bool = True
+    capitalization: str = "namingcase"
+    remove_dots: bool = True
+    remove_tildes: bool = True
+    remove_invisibles: bool = True
+    remove_weird_spaces: bool = True
+    remove_multi_spaces: bool = True
+    cap_rules: List[str] = None
+
+    def normalize(self, text: str) -> str:
+        return normalize_text(text, **self.__dict__)
