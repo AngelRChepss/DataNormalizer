@@ -1,5 +1,5 @@
-from dataclasses import dataclass, field
-from typing import List, Dict, Optional
+from dataclasses import dataclass
+from typing import List, Dict
 
 # Este modulo se encarga de normalizar datos puros, pero no tiene la capacidad de trabajar con archivos.
 # Los datos deberan ser entregados en formato de lista, y se entregaran resultados de normalizacion.
