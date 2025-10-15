@@ -322,3 +322,6 @@ localtest.py
 test.xlsx
 test-in.xlsx
 test-out.xlsx
+
+# Ignore temporary xlsx files
+*.xlsx#
