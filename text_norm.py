@@ -180,6 +180,8 @@ def normalize_text(
         remove_multi_spaces: bool = True,
         cap_rules: List[str] = None
     ) -> str:
+    if text is None:
+        return ""
     result = text
     # Remover puntos
     if remove_dots:
