@@ -318,3 +318,5 @@ cython_debug/
 
 # Ignore localtest.py so we can do some local testing without affecting the repo
 localtest.py
+# Ignore test excel files
+test.xlsx
