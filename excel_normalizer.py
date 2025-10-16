@@ -6,12 +6,14 @@ from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.cell.cell import Cell
 from openpyxl.styles import PatternFill, Font
 from text_norm import Normalizer
+from norm_utils import check_rut_normalize
 
 
-COLOR_NORMALIZED = PatternFill(fill_type="solid", fgColor="FFCCFFFF")
+FILL_NORMALIZED = PatternFill(fill_type="solid", fgColor="FFCCFFFF")
+FILL_INVALID = PatternFill(fill_type="solid", fgColor="FFFF4444")
 FONT_BASE = Font(bold=False)
 
-def get_header_map(ws: Worksheet):
+def get_header_map(ws: Worksheet) -> Dict[str, str]:
     header_map =  {
         cell.value : cell.column_letter
         for idx, cell in enumerate(ws[1], start=1)
@@ -39,11 +41,11 @@ def normalize_columns(ws: Worksheet, columns: List[str], normalizer: Normalizer,
                 continue
             # Normalizer normaliza None a "", porque espera strings.
             # Pero nosotros preferimos quedarnos con None. Mas aun, textos vacios
-            # tambien deben ser None.
+            # también deben ser None.
             if not (cell.value is None):
                 result = normalizer.normalize(str(cell.value))
                 if cell.value != result:
-                    change_cell(cell, result or None, pattern=COLOR_NORMALIZED) # Cambia texto vacio a None
+                    change_cell(cell, result or None, pattern=FILL_NORMALIZED) # Cambia texto vacio a None
 
 def find_uniques(ws: Worksheet, column: str, exclude_empty: bool = True, sort: bool = False, start_row : int = 2) -> List:
     """
@@ -59,6 +61,34 @@ def find_uniques(ws: Worksheet, column: str, exclude_empty: bool = True, sort: b
     }
     values = sorted(values) if sort else list(values)
     return values
+
+def highlight_invalid_ruts(ws: Worksheet, column: str, header_map: Dict[str, str]=None) -> int:
+    header_map = header_map or get_header_map(ws)
+    cells = ws[header_map[column]]
+    invalid_count = 0
+    for cell in cells:
+        if cell.value:
+            valid, norm = check_rut_normalize(str(cell.value))
+            if valid:
+                continue
+        cell.fill = FILL_INVALID
+        invalid_count += 1
+    return invalid_count
+
+def normalize_ruts(ws: Worksheet, column: str, header_map: Dict[str, str]=None) -> int:
+    header_map = header_map or get_header_map(ws)
+    cells = ws[header_map[column]]
+    invalid_count = 0
+    for cell in cells:
+        if cell.value:
+            valid, norm = check_rut_normalize(str(cell.value))
+            if valid:
+                if norm != cell.value:
+                    change_cell(cell, cell.value, pattern=FILL_NORMALIZED)
+                continue
+        cell.fill = FILL_INVALID
+        invalid_count += 1
+    return invalid_count
 
 def store_values_in_sheet(wb: Workbook, sheet_name : str, values : Dict) -> None:
     """
