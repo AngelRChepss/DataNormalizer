@@ -323,6 +323,7 @@ test.xlsx
 test-in.xlsx
 test-out.xlsx
 *.ignore*
+*.test*
 
 # Ignore temporary xlsx files
 *.xlsx#
