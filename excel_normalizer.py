@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Iterable, Any, Callable
 import openpyxl
 from openpyxl import load_workbook, Workbook
 from openpyxl.utils import get_column_letter
@@ -13,6 +13,8 @@ class SheetNormalizer:
     FILL_NORMALIZED = PatternFill(fill_type="solid", fgColor="FFCCFFFF")
     FILL_INVALID = PatternFill(fill_type="solid", fgColor="FFFF4444")
     FILL_UNMAPPED = PatternFill(fill_type="solid", fgColor="FFFFBB99")
+    FILL_NOTFOUND = PatternFill(fill_type="solid", fgColor="FF6666FF")
+    FILL_TOOMANY = PatternFill(fill_type="solid", fgColor="FFFF8888")
     FONT_BASE = Font(bold=False)
 
     def __init__(self, worksheet: Worksheet, wb_normalizer: BookNormalizer):
@@ -57,7 +59,10 @@ class SheetNormalizer:
         return self._max_column
 
     def header_map_cols(self, *cols) -> List[str]:
-        return [self.header_map[col] for col in cols]
+        if cols:
+            return [self.header_map[col] for col in cols]
+        else:
+            return list(self.header_map.values())
 
     def col_to_letter(self, col) -> str:
         if isinstance(col, int):
@@ -75,8 +80,15 @@ class SheetNormalizer:
         col_letter = self.header_map.get(col, col)
         self.ws[f"{col_letter}{row}"].value = value
 
+    def get_row(self, row: int, *cols : str) -> Tuple:
+        return tuple(self[col, row] for col in cols)
+
     def paint(self, col: str | int, row: int, pattern: PatternFill) -> None:
         self.ws[f"{self.col_to_letter(col)}{row}"].fill = pattern
+
+    def comment_cell(self, col: str | int, row: int, comment: str):
+        col = self.col_to_letter(col)
+        self.ws[f"{self.col_to_letter(col)}{row}"].comment = comment
 
     @staticmethod
     def change_cell(cell: Cell, value, pattern: PatternFill | None = None, font: Font | None = None):
@@ -221,15 +233,15 @@ class SheetNormalizer:
             if value not in maps and value not in values:
                 self.paint(tgt_column, r, self.FILL_UNMAPPED)
 
-
-    def copy_column(self, read_column: str, write_column: str | None = None, write_ws: Worksheet | None = None) -> None:
-        """
-        Copia una columna de una hoja a otra hoja (o la misma hoja)
-        """
-        write_ws = write_ws or self.ws
-        write_column = write_column or read_column
-        # TODO: FUNC
-        pass
+    def look_up(self, compare_value, lookup_cols: Iterable = None,  comparer: Callable[[Tuple, Any], bool] = None) -> List[Tuple]:
+        comparer = comparer or (lambda x, y : x == y)
+        results = []
+        lookup_cols = lookup_cols or self.header_map_cols()
+        for row in range(2, self.max_row + 1):
+            row_values = tuple(self[col, row] for col in lookup_cols)
+            if comparer(row_values, compare_value):
+                results.append((row,)+row_values)
+        return results
 
 class BookNormalizer:
     def __init__(self, file_name: str):
@@ -322,6 +334,33 @@ class BookNormalizer:
     def apply_mapping(self, mapping_name: str, column, tgt_column) -> None:
         mapper = self.mappings[mapping_name]
         self.current_norm.map_with_dict(mapper, column, tgt_column)
+
+    def lookup_map(self,
+                   mapper: Callable[[Tuple, Tuple], Any],
+                   mapping_cols: List[str],
+                   comparer : Callable[[Tuple, Tuple], bool],
+                   lookup_cols : List[str],
+                   look_up_sheet : str
+                   ):
+        """TODO: Documentar porque es muy compleja de usar!"""
+        lookup_norm = self.ws_norms[look_up_sheet]
+        # Iterar sobre filas en columnas
+        for row in range(2, self.current_norm.max_row + 1):
+            row_data = (row,) + (self.current_norm.get_row(row, *mapping_cols))
+            search_result = lookup_norm.look_up(row_data, lookup_cols, comparer)
+            if not search_result:
+                for col in mapping_cols:
+                    self.current_norm.paint(col, row, self.current_norm.FILL_NOTFOUND)
+                continue
+            elif len(search_result) > 1:
+                for col in mapping_cols:
+                    self.current_norm.paint(col, row, self.current_norm.FILL_TOOMANY)
+                # Mapeamos el primer hallazgo de todos modos
+            search_result = search_result[0]
+            result = mapper(row_data, search_result)
+            for i, value in enumerate(result):
+                self.current_norm[mapping_cols[i], row] = value
+
 
     def __getattr__(self, name):
         """
