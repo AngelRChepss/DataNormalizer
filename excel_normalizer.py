@@ -77,8 +77,13 @@ class SheetNormalizer:
 
     def __setitem__(self, key, value):
         col, row = key
-        col_letter = self.header_map.get(col, col)
+        col_letter = self.col_to_letter(col)
         self.ws[f"{col_letter}{row}"].value = value
+        if row == 1:
+            self.recalculate_max_column()
+            self.recalculate_header_map()
+        if row > self.max_row:
+            self.recalculate_max_row()
 
     def get_row(self, row: int, *cols : str) -> Tuple:
         return tuple(self[col, row] for col in cols)
@@ -139,7 +144,6 @@ class SheetNormalizer:
         cols = self.header_map_cols(*columns)
         for row in range(start_row, self.max_row + 1):
             values.add(tuple(self.ws[f"{col}{row}"].value or "" for col in cols))
-
         values = sorted(values) if sort else list(values)
         return values
 
@@ -238,10 +242,13 @@ class SheetNormalizer:
         results = []
         lookup_cols = lookup_cols or self.header_map_cols()
         for row in range(2, self.max_row + 1):
-            row_values = tuple(self[col, row] for col in lookup_cols)
-            if comparer(row_values, compare_value):
+            row_values = (row, ) + tuple(self[col, row] for col in lookup_cols)
+            if comparer(compare_value, row_values):
                 results.append((row,)+row_values)
         return results
+
+    def create_column(self, name: str) -> None:
+        self[self.max_column + 1, 1] = name
 
 class BookNormalizer:
     def __init__(self, file_name: str):
