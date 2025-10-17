@@ -121,6 +121,9 @@ def check_rut_normalize(rut: str, validation_mode: str = "lax", norm_mode: str =
             final_rut = norm + "-" + dv
         elif norm_mode == "dotted":
             final_rut = f"{norm[:-6]}.{norm[-6:-3]}.{norm[-3:]}-{dv}"
+        # Borramos ceros al inicio
+        while final_rut[0] == "0":
+            final_rut = final_rut[1:]
     # Retornar resultados
     # NOTA: No podemos normalizar un rut que no tiene formato válido. (porque podría ser cualquier cosa)
     return valid, final_rut
