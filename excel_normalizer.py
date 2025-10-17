@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List, Dict
+from typing import List, Dict, Tuple
 import openpyxl
 from openpyxl import load_workbook, Workbook
 from openpyxl.utils import get_column_letter
@@ -55,6 +55,9 @@ class SheetNormalizer:
             self.recalculate_max_column()
         return self._max_column
 
+    def header_map_cols(self, *cols) -> List[str]:
+        return [self.header_map[col] for col in cols]
+
     @staticmethod
     def change_cell(cell: Cell, value, pattern: PatternFill | None = None, font: Font | None = None):
         cell.value = value
@@ -92,6 +95,19 @@ class SheetNormalizer:
             cell.value for cell in cells
             if cell.row >= start_row and not (exclude_empty and cell.value in (None, ""))
         }
+        values = sorted(values) if sort else list(values)
+        return values
+
+    def find_multicolumn_uniques(self, columns: List[str], sort: bool = False, start_row: int = 2) -> List[Tuple]:
+        """
+        Encuentra todos los valores unicos en una columna de valores y retorna una lista con ellos.
+        La columna puede tener cualquier tipo de datos.
+        """
+        values = set()
+        cols = self.header_map_cols(*columns)
+        for row in range(start_row, self.max_row + 1):
+            values.add(tuple(self.ws[f"{col}{row}"].value or "" for col in cols))
+
         values = sorted(values) if sort else list(values)
         return values
 
@@ -139,6 +155,24 @@ class SheetNormalizer:
         self.recalculate_max_row()
         self.recalculate_header_map()
         self.recalculate_max_column()
+
+    def map_cols_unsafe(self, mapping_function, *cols):
+        cols = self.header_map_cols(*cols)
+        for col in cols:
+            for row in range(2, self.max_row + 1):
+                cell = self.ws[f"{col}{row}"]
+                cell.value = mapping_function(cell.value)
+
+    def map_cols_safe(self, mapping_function, *cols):
+        cols = self.header_map_cols(*cols)
+        for col in cols:
+            for row in range(2, self.max_row + 1):
+                cell = self.ws[f"{col}{row}"]
+                try:
+                    cell.value = mapping_function(cell.value)
+                except Exception as e:
+                    cell.fill = SheetNormalizer.FILL_INVALID
+                    cell.comment = str(e)
 
     def copy_column(self, read_column: str, write_column: str | None = None, write_ws: Worksheet | None = None) -> None:
         """
@@ -188,6 +222,24 @@ class BookNormalizer:
 
     def activate_sheet(self, sheet_name: str) -> None:
         self.current_norm = self.ws_norms[sheet_name]
+
+    def unify_into_sheet(self, column: str, new_name: str, target_sheet: str, exclude_empty: bool = True, sort: bool = False, start_row : int = 2):
+        unified = self.sheet.find_uniques(column, exclude_empty, sort, start_row)
+        data = {new_name: unified}
+        self.ws_norms[target_sheet].write_values(data)
+
+    def multi_unify_into_sheet(self, columns: List[str], new_names: List[str], target_sheet: str, sort: bool = False, start_row : int = 2):
+        unified = self.sheet.find_multicolumn_uniques(columns, sort, start_row)
+        data = {
+            name: []
+            for name in new_names
+        }
+
+        for uni in unified:
+            for i, unique in enumerate(uni):
+                data[new_names[i]].append(unique)
+
+        self.ws_norms[target_sheet].write_values(data)
 
     @property
     def sheet(self) -> SheetNormalizer:
