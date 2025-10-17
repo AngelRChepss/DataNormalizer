@@ -58,6 +58,19 @@ class SheetNormalizer:
     def header_map_cols(self, *cols) -> List[str]:
         return [self.header_map[col] for col in cols]
 
+    def __getitem__(self, key):
+        col, row = key
+        if isinstance(col, int):
+            col_letter = get_column_letter(col)
+        else:
+            col_letter = self.header_map.get(str(col), str(col))
+        return self.ws[f"{col_letter}{row}"].value
+
+    def __setitem__(self, key, value):
+        col, row = key
+        col_letter = self.header_map.get(col, col)
+        self.ws[f"{col_letter}{row}"].value = value
+
     @staticmethod
     def change_cell(cell: Cell, value, pattern: PatternFill | None = None, font: Font | None = None):
         cell.value = value
@@ -156,14 +169,14 @@ class SheetNormalizer:
         self.recalculate_header_map()
         self.recalculate_max_column()
 
-    def map_cols_unsafe(self, mapping_function, *cols):
+    def map_cols_unsafe(self, mapping_function, *cols) -> None:
         cols = self.header_map_cols(*cols)
         for col in cols:
             for row in range(2, self.max_row + 1):
                 cell = self.ws[f"{col}{row}"]
                 cell.value = mapping_function(cell.value)
 
-    def map_cols_safe(self, mapping_function, *cols):
+    def map_cols_safe(self, mapping_function, *cols) -> None:
         cols = self.header_map_cols(*cols)
         for col in cols:
             for row in range(2, self.max_row + 1):
@@ -173,6 +186,16 @@ class SheetNormalizer:
                 except Exception as e:
                     cell.fill = SheetNormalizer.FILL_INVALID
                     cell.comment = str(e)
+
+    def multimap_cols_unsafe(self, mapping_function, *cols) -> None:
+        header_map = self.header_map_cols(*cols)
+        for row in range(2, self.max_row + 1):
+            map_data = tuple(
+                self.ws[f"{col}{row}"].value for col in header_map
+            )
+            new_data = mapping_function(*map_data)
+            for i, col in enumerate(cols):
+                self.ws[f"{col}{row}"].value = new_data[i]
 
     def copy_column(self, read_column: str, write_column: str | None = None, write_ws: Worksheet | None = None) -> None:
         """
