@@ -12,6 +12,7 @@ from norm_utils import check_rut_normalize
 class SheetNormalizer:
     FILL_NORMALIZED = PatternFill(fill_type="solid", fgColor="FFCCFFFF")
     FILL_INVALID = PatternFill(fill_type="solid", fgColor="FFFF4444")
+    FILL_UNMAPPED = PatternFill(fill_type="solid", fgColor="FFFFBB99")
     FONT_BASE = Font(bold=False)
 
     def __init__(self, worksheet: Worksheet, wb_normalizer: BookNormalizer):
@@ -58,18 +59,24 @@ class SheetNormalizer:
     def header_map_cols(self, *cols) -> List[str]:
         return [self.header_map[col] for col in cols]
 
-    def __getitem__(self, key):
-        col, row = key
+    def col_to_letter(self, col) -> str:
         if isinstance(col, int):
             col_letter = get_column_letter(col)
         else:
             col_letter = self.header_map.get(str(col), str(col))
-        return self.ws[f"{col_letter}{row}"].value
+        return col_letter
+
+    def __getitem__(self, key):
+        col, row = key
+        return self.ws[f"{self.col_to_letter(col)}{row}"].value
 
     def __setitem__(self, key, value):
         col, row = key
         col_letter = self.header_map.get(col, col)
         self.ws[f"{col_letter}{row}"].value = value
+
+    def paint(self, col: str | int, row: int, pattern: PatternFill) -> None:
+        self.ws[f"{self.col_to_letter(col)}{row}"].fill = pattern
 
     @staticmethod
     def change_cell(cell: Cell, value, pattern: PatternFill | None = None, font: Font | None = None):
@@ -197,6 +204,24 @@ class SheetNormalizer:
             for i, col in enumerate(cols):
                 self.ws[f"{col}{row}"].value = new_data[i]
 
+    def get_columns(self, *cols : str) -> Dict[str, List]:
+        data = {}
+        for col in cols:
+            data[col] = []
+            for row in range(2, self.max_row + 1):
+                data[col].append(self[col, row])
+        return data
+
+    def map_with_dict(self, mapper: Dict, column: str, tgt_column: str):
+        maps = mapper.keys()
+        values = mapper.values()
+        for r in range(2, self.max_row + 1):
+            value = self[column, r]
+            self[tgt_column, r] = mapper.get(value, value)
+            if value not in maps and value not in values:
+                self.paint(tgt_column, r, self.FILL_UNMAPPED)
+
+
     def copy_column(self, read_column: str, write_column: str | None = None, write_ws: Worksheet | None = None) -> None:
         """
         Copia una columna de una hoja a otra hoja (o la misma hoja)
@@ -211,6 +236,8 @@ class BookNormalizer:
         self.wb: Workbook = load_workbook(file_name)
         self.ws_norms = {sheet: SheetNormalizer(self.wb[sheet], self) for sheet in self.wb.sheetnames}
         self.current_norm = self.ws_norms[self.wb.sheetnames[0]]
+        self.mappings : Dict[str, Dict] = {}
+        self.file_name = file_name
 
     def keep_sheets(self, sheets: List[str] | None = None) -> None:
         sheets = sheets or self.wb.sheetnames
@@ -264,10 +291,37 @@ class BookNormalizer:
 
         self.ws_norms[target_sheet].write_values(data)
 
+    def copy_cols_into_sheet(self, target_sheet: str, *cols: str) -> None:
+        data = self.current_norm.get_columns(*cols)
+        self.ws_norms[target_sheet].write_values(data)
+
     @property
     def sheet(self) -> SheetNormalizer:
         """Acceso explícito al SheetNormalizer actual (para autocompletado)."""
         return self.current_norm
+
+    def load_mapping(self, sheet : str, key_col: str, value_col: str, mapping_name: str = None, file: str = ""):
+        close = False
+        if (file or self.file_name) != self.file_name:
+            wb = load_workbook(file)
+            ws = wb[sheet]
+            normal = SheetNormalizer(ws, self)
+            close = True
+        else:
+            wb = None
+            normal = self.ws_norms[sheet]
+        data = normal.get_columns(key_col, value_col)
+        if close:
+            wb.close()
+
+        mapped = {}
+        for row in range(len(data[key_col])):
+            mapped[data[key_col][row]] = data[value_col][row]
+        self.mappings[mapping_name or sheet] = mapped
+
+    def apply_mapping(self, mapping_name: str, column, tgt_column) -> None:
+        mapper = self.mappings[mapping_name]
+        self.current_norm.map_with_dict(mapper, column, tgt_column)
 
     def __getattr__(self, name):
         """
