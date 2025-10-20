@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import List, Dict, Tuple, Iterable, Any, Callable
 import openpyxl
 from openpyxl import load_workbook, Workbook
-from openpyxl.utils import get_column_letter
+from openpyxl.utils import get_column_letter, column_index_from_string
 from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.cell.cell import Cell
 from openpyxl.styles import PatternFill, Font
@@ -86,7 +86,7 @@ class SheetNormalizer:
             self.recalculate_max_row()
 
     def get_row(self, row: int, *cols : str) -> Tuple:
-        return tuple(self[col, row] for col in cols)
+        return tuple(self[col, row] for col in range(1, self.max_column + 1))
 
     def paint(self, col: str | int, row: int, pattern: PatternFill) -> None:
         self.ws[f"{self.col_to_letter(col)}{row}"].fill = pattern
@@ -246,6 +246,23 @@ class SheetNormalizer:
             if comparer(compare_value, row_values):
                 results.append((row,)+row_values)
         return results
+
+    def overwrite_rows(self, *rows):
+        for idx, row in enumerate(rows):
+            for col in range(1, self.max_column + 1):
+                # +1 para compensar porque excel parte de 1, y +1 para saltar header
+                self[col, idx+2] = row[col-1]
+
+    def sort_columns(self, *cols):
+        # Iterar para crear una lista de tuplas de filas
+        data = []
+        for row in range(2, self.max_row + 1):
+            data.append(self.get_row(row))
+        index_cols = [column_index_from_string(self.col_to_letter(col)) for col in cols]
+        # Ordenar por cada columna por separado
+        for col in reversed(index_cols):
+            data.sort(key = lambda x: (x[col-1] is not None, str(x[col-1]) if x[col-1] is not None else ""), reverse = False)
+        self.overwrite_rows(*data)
 
     def create_column(self, name: str) -> None:
         self[self.max_column + 1, 1] = name
