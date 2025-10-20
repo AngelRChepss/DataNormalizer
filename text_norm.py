@@ -178,6 +178,7 @@ def normalize_text(
         remove_invisibles: bool = True,
         remove_weird_spaces: bool = True,
         remove_multi_spaces: bool = True,
+        remove_quotations: bool = True,
         cap_rules: List[str] = None
     ) -> str:
     if text is None:
@@ -198,7 +199,14 @@ def normalize_text(
     # Remover secciones con multiples espacios consecutivos
     if remove_multi_spaces:
         result = collapse(result, " ")
-    # Aplicar stripping (Remover espacios adelante y detras del texto
+    # Aplicar stripping ANTES de las comillas (Remover espacios adelante y detras del texto
+    if strip:
+        result = result.strip()
+    # Remover comillas
+    if remove_quotations:
+        if result.startswith("\"") and result.endswith("\"") and len(result) > 1:
+            result = result[1:-1]
+    # Aplicar stripping DESPUES de las comillas (Remover espacios adelante y detras del texto
     if strip:
         result = result.strip()
     # Aplicar capitalizacion de caracteres (Mayusculas y minusculas)
@@ -215,6 +223,7 @@ class Normalizer:
     remove_invisibles: bool = True
     remove_weird_spaces: bool = True
     remove_multi_spaces: bool = True
+    remove_quotations: bool = True
     cap_rules: List[str] = None
 
     def normalize(self, text: str) -> str:
