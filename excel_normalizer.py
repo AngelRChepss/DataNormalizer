@@ -376,6 +376,8 @@ class BookNormalizer:
             for i, value in enumerate(result):
                 self.current_norm[mapping_cols[i], row] = value
 
+    def close_book(self):
+        self.wb.close()
 
     def __getattr__(self, name):
         """
