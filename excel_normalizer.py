@@ -258,7 +258,7 @@ class BookNormalizer:
         self.mappings : Dict[str, Dict] = {}
         self.file_name = file_name
 
-    def keep_sheets(self, sheets: List[str] | None = None) -> None:
+    def keep_sheets(self, sheets: Iterable | None = None) -> None:
         sheets = sheets or self.wb.sheetnames
         wb_sheets = self.wb.sheetnames.copy()
         for sheet in wb_sheets:
@@ -313,6 +313,14 @@ class BookNormalizer:
     def copy_cols_into_sheet(self, target_sheet: str, *cols: str) -> None:
         data = self.current_norm.get_columns(*cols)
         self.ws_norms[target_sheet].write_values(data)
+
+    def save_sheets_to_file(self, file_name: str, *sheet_names: str,):
+        self.wb.save(file_name)
+        bn = BookNormalizer(file_name)
+        bn.keep_sheets(sheet_names)
+        bn.save(file_name)
+        bn.wb.close()
+
 
     @property
     def sheet(self) -> SheetNormalizer:
