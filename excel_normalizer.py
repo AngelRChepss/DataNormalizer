@@ -86,7 +86,9 @@ class SheetNormalizer:
             self.recalculate_max_row()
 
     def get_row(self, row: int, *cols : str) -> Tuple:
-        return tuple(self[col, row] for col in range(1, self.max_column + 1))
+        if len(cols) == 0 or not cols:
+            cols = range(1, self.max_column + 1)
+        return tuple(self[col, row] for col in cols)
 
     def paint(self, col: str | int, row: int, pattern: PatternFill) -> None:
         self.ws[f"{self.col_to_letter(col)}{row}"].fill = pattern
