@@ -6,6 +6,7 @@ from openpyxl.utils import get_column_letter, column_index_from_string
 from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.cell.cell import Cell
 from openpyxl.styles import PatternFill, Font
+from openpyxl.comments import Comment
 from text_norm import Normalizer
 from norm_utils import check_rut_normalize
 
@@ -15,6 +16,7 @@ class SheetNormalizer:
     FILL_UNMAPPED = PatternFill(fill_type="solid", fgColor="FFFFBB99")
     FILL_NOTFOUND = PatternFill(fill_type="solid", fgColor="FF6666FF")
     FILL_TOOMANY = PatternFill(fill_type="solid", fgColor="FFFF8888")
+    FILL_DUPLICATE = PatternFill(fill_type="solid", fgColor="FFAAAA55")
     FONT_BASE = Font(bold=False)
 
     def __init__(self, worksheet: Worksheet, wb_normalizer: BookNormalizer):
@@ -95,7 +97,7 @@ class SheetNormalizer:
 
     def comment_cell(self, col: str | int, row: int, comment: str):
         col = self.col_to_letter(col)
-        self.ws[f"{self.col_to_letter(col)}{row}"].comment = comment
+        self.ws[f"{col}{row}"].comment = Comment(comment, "normalizer")
 
     @staticmethod
     def change_cell(cell: Cell, value, pattern: PatternFill | None = None, font: Font | None = None):
@@ -174,6 +176,7 @@ class SheetNormalizer:
                         SheetNormalizer.change_cell(cell, norm, pattern=SheetNormalizer.FILL_NORMALIZED)
                     continue
             cell.fill = SheetNormalizer.FILL_INVALID
+            cell.comment = Comment("Rut invalido", "normalizer")
             invalid_count += 1
         return invalid_count
 
@@ -210,7 +213,7 @@ class SheetNormalizer:
                     cell.value = mapping_function(cell.value)
                 except Exception as e:
                     cell.fill = SheetNormalizer.FILL_INVALID
-                    cell.comment = str(e)
+                    cell.comment = Comment(str(e), "normalizer")
 
     def multimap_cols_unsafe(self, mapping_function, *cols) -> None:
         header_map = self.header_map_cols(*cols)
@@ -268,6 +271,18 @@ class SheetNormalizer:
 
     def create_column(self, name: str) -> None:
         self[self.max_column + 1, 1] = name
+
+    def highlight_duplicates(self, column):
+        data = {}
+        for row in range(2, self.max_row + 1):
+            value = self[column, row]
+            if value in data.keys():
+                data[value].append(row)
+                for dup in data[value]:
+                    self.paint(column, dup, self.FILL_DUPLICATE)
+                    self.comment_cell(column, dup, f"Valor duplicado en {data[value]}")
+            else:
+                data[value] = [row]
 
 class BookNormalizer:
     def __init__(self, file_name: str):
