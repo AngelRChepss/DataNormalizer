@@ -1,2 +1,2 @@
 # DataNormalizer
-Modulo que normaliza datos de texto
+Modulo que normaliza tablas de excel
