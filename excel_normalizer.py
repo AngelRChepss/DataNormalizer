@@ -271,6 +271,8 @@ class SheetNormalizer:
 
     def create_column(self, name: str) -> None:
         self[self.max_column + 1, 1] = name
+        self.recalculate_max_column()
+        self.recalculate_header_map()
 
     def highlight_duplicates(self, column):
         data = {}
@@ -404,6 +406,7 @@ class BookNormalizer:
             elif len(search_result) > 1:
                 for col in mapping_cols:
                     self.current_norm.paint(col, row, self.current_norm.FILL_TOOMANY)
+                    self.current_norm.comment_cell(col, row, f"Found multiple: {search_result}")
                 # Mapeamos el primer hallazgo de todos modos
             search_result = search_result[0]
             result = mapper(row_data, search_result)
