@@ -7,7 +7,7 @@ from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.cell.cell import Cell
 from openpyxl.styles import PatternFill, Font
 from openpyxl.comments import Comment
-from text_norm import Normalizer
+from text_normalizer import Normalizer
 from norm_utils import check_rut_normalize, validate_email_strict
 
 class SheetNormalizer:
