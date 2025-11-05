@@ -1,9 +1,10 @@
 from typing import Dict, List, Set, Tuple
 from difflib import SequenceMatcher
+from email_validator import validate_email, EmailNotValidError
 import re
 
 STRICT_RUT_PATTERN = re.compile(r'^((\d{1,3}(?:\.\d{3}){2})|(\d{7,9}))-[\dkK]$')
-LAX_RUT_PATTERN = re.compile(r'^[\d.]{7,9}-?[\dkK]$')
+LAX_RUT_PATTERN = re.compile(r'^[\d.]{7,11}-?[\dkK]$')
 
 def similarity(a: str, b: str) -> float:
     """
@@ -67,7 +68,29 @@ def calculate_dv(rut_num: str) -> str:
     else:
         return str(remainder)
 
-def check_rut_normalize(rut: str, validation_mode: str = "lax", norm_mode: str = "standard") -> Tuple[bool, str]:
+def validate_email_strict(email: str) -> tuple[bool, str]:
+    """
+    Valida rigurosamente una cadena de correo electrónico para asegurar el cumplimiento 
+    de los estándares de formato. El método utiliza lógica de validación externa para
+    inspeccionar y validar la cadena de correo electrónico proporcionada. Si la 
+    validación falla, también captura y retorna los detalles del error.
+
+    :param email: La cadena con la dirección de correo electrónico a validar.
+    :type email: str
+    :return: Una tupla donde el primer elemento es un booleano que indica si el correo
+             es válido, y el segundo elemento es una cadena que contiene "Ok" o el
+             mensaje de error.
+    :rtype: tuple[bool, str]
+    """
+    try:
+        validate_email(email)
+        return True, "Ok"
+    except EmailNotValidError as e:
+        return False, str(e)
+    except Exception as e:
+        return False, str(e)
+
+def check_rut_normalize(rut: str, validation_mode: str = "lax", norm_mode: str = "standard") -> Tuple[bool, str, str]:
     """
     Valida un RUT y lo normaliza.
     Modo de uso:
@@ -92,15 +115,18 @@ def check_rut_normalize(rut: str, validation_mode: str = "lax", norm_mode: str =
     if norm_mode not in ("standard", "dotted", "none"):
         raise ValueError(f"Invalid normalization mode \"{norm_mode}\".")
 
+    msg = ""
     # Fase de validacion de formato
     valid_format = True
     norm = rut.lower()
     if validation_mode == "strict":
         if not STRICT_RUT_PATTERN.match(rut):
             valid_format = False
+            msg = "Fallo en formato estricto de rut"
     elif validation_mode == "lax":
         if not LAX_RUT_PATTERN.match(rut):
             valid_format = False
+            msg = "Fallo en formato laxo de rut"
 
     # Fase de validacion de digito
     final_rut = rut
@@ -115,6 +141,8 @@ def check_rut_normalize(rut: str, validation_mode: str = "lax", norm_mode: str =
         else:
             norm, dv = norm[:-1], norm[-1]
         valid = dv == calculate_dv(norm)
+        if not valid:
+            msg = "Digito verificador incorrecto"
 
         # También tenemos garantía de que el rut tiene entre 7 y 9 dígitos
         if norm_mode == "standard":
@@ -126,4 +154,4 @@ def check_rut_normalize(rut: str, validation_mode: str = "lax", norm_mode: str =
             final_rut = final_rut[1:]
     # Retornar resultados
     # NOTA: No podemos normalizar un rut que no tiene formato válido. (porque podría ser cualquier cosa)
-    return valid, final_rut
+    return valid, final_rut, msg

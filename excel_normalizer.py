@@ -8,7 +8,7 @@ from openpyxl.cell.cell import Cell
 from openpyxl.styles import PatternFill, Font
 from openpyxl.comments import Comment
 from text_norm import Normalizer
-from norm_utils import check_rut_normalize
+from norm_utils import check_rut_normalize, validate_email_strict
 
 class SheetNormalizer:
     FILL_NORMALIZED = PatternFill(fill_type="solid", fgColor="FFCCFFFF")
@@ -139,7 +139,7 @@ class SheetNormalizer:
         values = sorted(values) if sort else list(values)
         return values
 
-    def find_multicolumn_uniques(self, columns: List[str], sort: bool = False, start_row: int = 2) -> List[Tuple]:
+    def find_multicolumn_uniques(self, columns: Iterable[str], sort: bool = False, start_row: int = 2) -> List[Tuple]:
         """
         Encuentra todos los valores unicos en una columna de valores y retorna una lista con ellos.
         La columna puede tener cualquier tipo de datos.
@@ -163,21 +163,29 @@ class SheetNormalizer:
             invalid_count += 1
         return invalid_count
 
-    def normalize_ruts(self, column: str, start_row: int = 2) -> int:
+    def normalize_ruts(self, column: str, norm_mode="standard", validation_mode="strict", start_row: int = 2) -> int:
         cells = self.ws[self.header_map[column]]
         invalid_count = 0
         for cell in cells:
             if cell.row < start_row:
                 continue
             if cell.value:
-                valid, norm = check_rut_normalize(str(cell.value))
+                valid, norm, msg = check_rut_normalize(str(cell.value), norm_mode=norm_mode, validation_mode=validation_mode)
+                if valid:
+                    if norm != cell.value:
+                        SheetNormalizer.change_cell(cell, norm, pattern=SheetNormalizer.FILL_NORMALIZED)
                 if valid:
                     if norm != cell.value:
                         SheetNormalizer.change_cell(cell, norm, pattern=SheetNormalizer.FILL_NORMALIZED)
                     continue
-            cell.fill = SheetNormalizer.FILL_INVALID
-            cell.comment = Comment("Rut invalido", "normalizer")
-            invalid_count += 1
+                else:
+                    cell.fill = SheetNormalizer.FILL_INVALID
+                    cell.comment = Comment(f"Rut invalido: {msg}", "normalizer")
+                    invalid_count += 1
+            else:
+                cell.fill = SheetNormalizer.FILL_INVALID
+                cell.comment = Comment(f"Rut invalido: Campo nulo", "normalizer")
+                invalid_count += 1
         return invalid_count
 
     def write_values(self, values: Dict) -> None:
@@ -219,11 +227,11 @@ class SheetNormalizer:
         header_map = self.header_map_cols(*cols)
         for row in range(2, self.max_row + 1):
             map_data = tuple(
-                self.ws[f"{col}{row}"].value for col in header_map
+                self[col,row] for col in header_map
             )
             new_data = mapping_function(*map_data)
             for i, col in enumerate(cols):
-                self.ws[f"{col}{row}"].value = new_data[i]
+                self[col,row] = new_data[i]
 
     def get_columns(self, *cols : str) -> Dict[str, List]:
         data = {}
@@ -275,6 +283,7 @@ class SheetNormalizer:
         self.recalculate_header_map()
 
     def highlight_duplicates(self, column):
+        """Destaca todos los valores duplicados en una columna especificada"""
         data = {}
         for row in range(2, self.max_row + 1):
             value = self[column, row]
@@ -285,6 +294,38 @@ class SheetNormalizer:
                     self.comment_cell(column, dup, f"Valor duplicado en {data[value]}")
             else:
                 data[value] = [row]
+
+    def normalize_emails(self, column: str, normalizer: Normalizer = None):
+        """Normaliza todos los emails de una columna"""
+        for row in range(2, self.max_row + 1):
+            value = self[column, row]
+            if value and normalizer:
+                value = normalizer.normalize(value)
+            if value:
+                self[column, row] = value
+                valid, msg = validate_email_strict(value)
+                if not valid:
+                    self.paint(column, row, self.FILL_INVALID)
+                    self.comment_cell(column, row, msg)
+
+    def split_column(self, source_col: str, new_cols: list[str], delimiter: str, start_row: int = 2):
+        """
+        Split a source column into multiple new columns using a delimiter.
+
+        Example:
+            split_column("Full Name", ["First", "Middle", "Last", "Suffix"], " ")
+        """
+        # Ensure new columns exist
+        for name in new_cols:
+            self.create_column(name)
+
+        for row in range(start_row, self.max_row + 1):
+            value = self[source_col, row]
+            if value is None:
+                continue
+            parts = str(value).split(delimiter, len(new_cols) - 1)
+            for i, col_name in enumerate(new_cols):
+                self[col_name, row] = parts[i] if i < len(parts) else None
 
 class BookNormalizer:
     def __init__(self, file_name: str):
@@ -333,7 +374,7 @@ class BookNormalizer:
         data = {new_name: unified}
         self.ws_norms[target_sheet].write_values(data)
 
-    def multi_unify_into_sheet(self, columns: List[str], new_names: List[str], target_sheet: str, sort: bool = False, start_row : int = 2):
+    def multi_unify_into_sheet(self, columns: Iterable[str], new_names: Iterable[str], target_sheet: str, sort: bool = False, start_row : int = 2):
         unified = self.sheet.find_multicolumn_uniques(columns, sort, start_row)
         data = {
             name: []
@@ -412,6 +453,65 @@ class BookNormalizer:
             result = mapper(row_data, search_result)
             for i, value in enumerate(result):
                 self.current_norm[mapping_cols[i], row] = value
+
+    def merge_columns_into_sheet(
+            self,
+            column_groups: list[tuple[str, ...]],
+            target_sheet: str,
+            new_names: tuple[str, ...],
+            *,
+            drop_empty_rows: bool = True,
+            dedupe: bool = False,
+    ):
+        """
+        Merge rows from multiple source column groups into a new sheet with unified column names.
+
+        Args:
+            column_groups: e.g. [
+                ("ColA1", "ColB1"),
+                ("ColA2", "ColB2"),
+                # ...more groups, each same length as new_names
+            ]
+            target_sheet: sheet name to write to (created if missing)
+            new_names: output column headers, e.g. ("ColA", "ColB")
+            drop_empty_rows: skip rows where all values are empty/None
+            dedupe: keep only unique row-tuples across the merged result
+        """
+        k = len(new_names)
+        if target_sheet not in self.ws_norms:
+            self.create_sheet(target_sheet)  # creates SheetNormalizer for it
+
+        # Collect merged data per output column
+        merged = {name: [] for name in new_names}
+
+        for group in column_groups:
+            if len(group) != k:
+                raise ValueError(f"Column group length {len(group)} != {k} (len(new_names))")
+
+            # Read all source columns (returns lists without headers)
+            cols_dict = self.sheet.get_columns(*group)  # uses column names as keys
+            # Reconstruct row-wise tuples for this group
+            rows_iter = zip(*(cols_dict[col] for col in group))
+
+            for row_vals in rows_iter:
+                if drop_empty_rows and all(v in (None, "") for v in row_vals):
+                    continue
+                for i, out_name in enumerate(new_names):
+                    merged[out_name].append(row_vals[i])
+
+        if dedupe:
+            seen = set()
+            deduped = {name: [] for name in new_names}
+            for row in zip(*(merged[name] for name in new_names)):
+                if row in seen:
+                    continue
+                seen.add(row)
+                for i, name in enumerate(new_names):
+                    deduped[name].append(row[i])
+            merged = deduped
+
+        # Write merged columns to the target sheet
+        self.ws_norms[target_sheet].write_values(merged)
 
     def close_book(self):
         self.wb.close()
