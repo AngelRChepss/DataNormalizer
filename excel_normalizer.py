@@ -174,9 +174,6 @@ class SheetNormalizer:
                 if valid:
                     if norm != cell.value:
                         SheetNormalizer.change_cell(cell, norm, pattern=SheetNormalizer.FILL_NORMALIZED)
-                if valid:
-                    if norm != cell.value:
-                        SheetNormalizer.change_cell(cell, norm, pattern=SheetNormalizer.FILL_NORMALIZED)
                     continue
                 else:
                     cell.fill = SheetNormalizer.FILL_INVALID
