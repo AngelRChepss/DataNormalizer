@@ -5,7 +5,7 @@ from typing import List, Dict
 # Los datos deberan ser entregados en formato de lista, y se entregaran resultados de normalizacion.
 
 
-# Lista de todos los tipos de espacios raros que hay que eliminar
+# Lista de todos los tipos de espacios raros que hay que eliminar (Que nunca más sea un problema!!!!)
 WEIRD_SPACES = [
     "\u00A0",  # NO-BREAK SPACE
     "\u2000",  # EN QUAD
@@ -32,7 +32,7 @@ TILDES = {
     "Á": "A", "É": "E", "Í": "I", "Ó": "O", "Ú": "U",
 }
 
-# Lista de caracteres invisibles que deben ser eliminados
+# Lista de caracteres invisibles que deben ser eliminados (Nunca más!)
 INVISIBLES = [
     "\u200B",  # ZERO WIDTH SPACE
     "\u200C",  # ZERO WIDTH NON-JOINER
