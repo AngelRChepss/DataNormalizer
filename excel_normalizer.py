@@ -304,6 +304,9 @@ class SheetNormalizer:
                 if not valid:
                     self.paint(column, row, self.FILL_INVALID)
                     self.comment_cell(column, row, msg)
+            else:
+                self.paint(column, row, self.FILL_INVALID)
+                self.comment_cell(column, row, "Campo vacío")
 
     def split_column(self, source_col: str, new_cols: list[str], delimiter: str, start_row: int = 2):
         """
