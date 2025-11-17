@@ -327,6 +327,16 @@ class SheetNormalizer:
             for i, col_name in enumerate(new_cols):
                 self[col_name, row] = parts[i] if i < len(parts) else None
 
+    def copy_column(self, source_col: str, new_col: str):
+        # Create new column with given name
+        self.create_column(new_col)
+        tgt_letter = self.header_map[new_col]
+        src_letter = self.header_map[source_col]
+
+        for row in range(2, self.max_row + 1):
+            value = self.ws[f"{src_letter}{row}"].value
+            self.ws[f"{tgt_letter}{row}"].value = value
+
 class BookNormalizer:
     def __init__(self, file_name: str):
         self.wb: Workbook = load_workbook(file_name)
