@@ -372,7 +372,7 @@ class BookNormalizer:
             data = []
             for col in cols:
                 data.append(self.ws[f"{col}{row}"].value)
-            values.append(join_character.join(str(x or "") for x in data if x is not None and x != "").strip())
+            values.append(join_character.join(str(x) for x in data if x is not None and x != "").strip())
 
         tgt_wsn.write_values({target_name: values})
 
