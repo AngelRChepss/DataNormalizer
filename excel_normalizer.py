@@ -254,7 +254,7 @@ class SheetNormalizer:
         for row in range(2, self.max_row + 1):
             row_values = (row, ) + tuple(self[col, row] for col in lookup_cols)
             if comparer(compare_value, row_values):
-                results.append((row,)+row_values)
+                results.append(row_values)
         return results
 
     def overwrite_rows(self, *rows):
