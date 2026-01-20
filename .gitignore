@@ -328,4 +328,4 @@ test-out.xlsx
 # Ignore temporary xlsx files
 *.xlsx#
 *.xlsx
-*.idea
+*.idea/
